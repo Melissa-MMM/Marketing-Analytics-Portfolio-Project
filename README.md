@@ -1,2 +1,2 @@
 # Marketing-Analytics-Portfolio-Project
-End-to-end Marketing Analytics portfolio project demonstrating data extraction and cleaning with SQL, customer review sentiment enrichment using Python, and interactive dashboarding in Power BI. Includes stakeholder presentation materials to showcase a complete data analyst workflow from raw data to actionable business insights.
+Welcome to my Data Analyst Portfolio Project! This project solves a real marketing analytics problem by exploring data, cleaning it with SQL, performing advanced sentiment analysis with Python, and building an interactive dashboard in Power BI.
