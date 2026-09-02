@@ -1,0 +1,101 @@
+
+-- SQL statement to join dim_customers with dim_geography to enrich customer data with geographic information
+
+SELECT 
+    c.CustomerID,  -- Selects the unique identifier for each customer
+    c.CustomerName,  -- Selects the name of each customer
+    c.Email,  -- Selects the email of each customer
+    c.Gender,  -- Selects the gender of each customer
+    c.Age,  -- Selects the age of each customer
+    g.Country,  -- Selects the country from the geography table to enrich customer data
+    g.City  -- Selects the city from the geography table to enrich customer data
+FROM 
+    dbo.customers as c  -- Specifies the alias 'c' for the dim_customers table
+LEFT JOIN
+    dbo.geography as g  -- Specifies the alias 'g' for the dim_geography table
+ON 
+    c.GeographyID = g.GeographyID;  -- Joins the two tables on the GeographyID field to match customers with their geographic information
+---***********************************************************************************************************************************************************
+-- Querying products to categirise them based on their price 
+SELECT 
+	ProductID,--Selects the unique indentifier of each product
+	ProductName,--Selects the name of each product
+	Price,--Selects the price of each product
+
+	--Catagorying the products into price categories: Low, Medium, or High
+	CASE 
+		WHEN Price < 100 THEN 'Low' -- If the price is lower then 100 ,it will be categrised as Low 
+		WHEN Price BETWEEN 100 AND 300 THEN 'Medium' -- If the price is between 100 and 300  ,it will be categrised as Medium 
+		ELSE 'High'-- If the price is higher then 300 ,is will be categrised as High 
+	END AS PriceCategory -- The name odf the new column as PriceCategory
+
+FROM 
+   dbo.products;
+
+----*********************************************************************************************************************************************************
+
+--Query to clean white spaces in fact_customer_reviews ReviewText column 
+SELECT 
+	ReviewID,--Selects the unique indentifier of each review
+	CustomerID,--Selects the unique indentifier of each customer
+	ProductID,--Selects the unique indentifier of each product
+	ReviewDate,--Selects the date of each review
+	Rating,--Selects the rating of each review
+	--Cleaning up ReviewText by replacing double spaces with single space to ensure thetext is more readble and standandized 
+	REPLACE (ReviewText,'  ', ' ') AS ReviewText
+FROM 
+	dbo.customer_reviews;
+----******************************************************************************************************************************************************
+
+-- Query to clean and normalize the fact_customer_engagement_data table
+
+SELECT 
+    EngagementID,  -- Selects the unique identifier for each engagement record
+    ContentID,  -- Selects the unique identifier for each piece of content
+	CampaignID,  -- Selects the unique identifier for each marketing campaign
+    ProductID,  -- Selects the unique identifier for each product
+    UPPER(REPLACE(ContentType, 'Socialmedia', 'Social Media')) AS ContentType,  -- Replaces "Socialmedia" with "Social Media" and then converts all ContentType values to uppercase
+    LEFT(ViewsClicksCombined, CHARINDEX('-', ViewsClicksCombined) - 1) AS Views,  -- Extracts the Views part from the ViewsClicksCombined column by taking the substring before the '-' character
+    RIGHT(ViewsClicksCombined, LEN(ViewsClicksCombined) - CHARINDEX('-', ViewsClicksCombined)) AS Clicks,  -- Extracts the Clicks part from the ViewsClicksCombined column by taking the substring after the '-' character
+    Likes,  -- Selects the number of likes the content received
+    -- Converts the EngagementDate to the dd.mm.yyyy format
+    FORMAT(CONVERT(DATE, EngagementDate), 'dd.MM.yyyy') AS EngagementDate  -- Converts and formats the date as dd.mm.yyyy
+FROM 
+    dbo.engagement_data  -- Specifies the source table from which to select the data
+WHERE 
+    ContentType != 'Newsletter';  -- Filters out rows where ContentType is 'Newsletter' as these are not relevant for our analysis
+
+--************************************************************************************************************************************************************
+
+---Query to process and clean fact_customer_journey
+SELECT 
+	JourneyID, --Selects the unique indentifier of each journey to ensure tracebility
+	CustomerID, --Selects the unique indentifier of each customer to link jounry to specific cus
+	ProductID, --Selects the unique indentifier of each product to anlyse custermer interactions with different products
+	VisitDate, --Select the data ofthe customer's visiit to help understand the timeline of cutomer interactions
+	Action,-- Uses the uppercased taken by the customer  
+	COALESCE(Duration,avg_duration) AS Duration --Replaces the missing durations with avrage duration
+FROM
+	(
+	--Subquery to process and clean data
+		SELECT
+			JourneyID, --Selects the unique indentifier of each journey
+			CustomerID, --Selects the unique indentifier of each customer
+			ProductID, --Selects the unique indentifier of each product
+			VisitDate, --Select the data ofthe customer's visit(which helps us to determin a timeline FOR custermer interactions)
+			UPPER(Stage) AS Stage,--Select the stage of the Customer journey
+			Action,-- Selects the action taken by the customer (View,Click,Purchase)
+			Duration,--Selects the duration of the action or interaction
+			AVG(Duration) OVER (PARTITION BY VisitDate) as avg_duration,
+			--use ROW_NUMBER TO assign a unique row number to each recored within the partiton defined below
+			ROW_NUMBER() OVER(
+				--PARTITION BY groups the rows based on the specified coloumns should be unique  )
+				PARTITION BY CustomerID,ProductID,VisitDate,Stage,Action
+				--ORDER BY define the to order the row  withing each partition
+				ORDER BY JourneyID
+			) AS row_num --Creates a new colunm called "row_num" thaty numbers each row within it's partition
+		FROM 
+			dbo.customer_journey
+	) AS subquery 
+WHERE
+	row_num = 1;
